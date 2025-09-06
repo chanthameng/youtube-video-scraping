@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  youtube-scraper-api:
+    build: .
+    container_name: youtube-scraper-api-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - PYTHONPATH=/app
+      - APP_DEBUG=true
+      - LOG_LEVEL=DEBUG
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - .:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - youtube-scraper-network
+    command: ["uvicorn", "youtube_scraper_api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+networks:
+  youtube-scraper-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
