@@ -27,7 +27,6 @@ class VideoData(BaseModel):
     upload_date: str
     views: str
     channel_subscribers: str
-    video_description: str # Added new field
 
 class SearchResponse(BaseModel):
     query: str
@@ -37,7 +36,7 @@ class SearchResponse(BaseModel):
 def get_video_data_with_views(api_key: str, query: str, max_total_results: int = 200):
     """
     Searches YouTube for videos and collects a specified number of results using pagination.
-    It then gets the view counts and descriptions for all collected videos and channel subscriber counts.
+    It then gets the view counts for all collected videos and channel subscriber counts.
     """
     try:
         # Build the YouTube service object
@@ -75,7 +74,7 @@ def get_video_data_with_views(api_key: str, query: str, max_total_results: int =
             if not next_page_token:
                 break
 
-        # Step 2: Get detailed statistics and descriptions for all collected videos
+        # Step 2: Get detailed statistics (including view counts) for all collected videos
         video_ids = [video["Video ID"] for video in video_data]
 
         # Process video IDs in chunks of 50, as the videos.list endpoint has a 50-item limit
@@ -83,21 +82,17 @@ def get_video_data_with_views(api_key: str, query: str, max_total_results: int =
             chunk_ids = video_ids[i:i + 50]
 
             videos_request = youtube.videos().list(
-                part="snippet,statistics", # Added 'snippet' to get the description
+                part="statistics",
                 id=",".join(chunk_ids)
             )
             videos_response = videos_request.execute()
 
-            # Create a dictionary for efficient lookup
-            video_stats_map = {item["id"]: item for item in videos_response.get("items", [])}
+            # Map view counts to the video data
+            stats_map = {item["id"]: item["statistics"].get("viewCount", "N/A") for item in videos_response.get("items", [])}
 
-            # Update the original video_data list with views and description
             for video in video_data:
-                video_id = video["Video ID"]
-                if video_id in video_stats_map:
-                    item = video_stats_map[video_id]
-                    video["Views"] = item["statistics"].get("viewCount", "N/A")
-                    video["Description"] = item["snippet"].get("description", "No description available.")
+                if video["Video ID"] in stats_map:
+                    video["Views"] = stats_map[video["Video ID"]]
 
         # Step 3: Get channel subscriber counts
         # Get unique channel IDs
@@ -162,8 +157,7 @@ async def search_videos(
                 video_link=video["Video Link"],
                 upload_date=video["Upload Date"],
                 views=video["Views"],
-                channel_subscribers=video.get("Channel Subscribers", "N/A"),
-                video_description=video.get("Description", "No description available.") # Added new field
+                channel_subscribers=video.get("Channel Subscribers", "N/A")
             ))
         
         return SearchResponse(
